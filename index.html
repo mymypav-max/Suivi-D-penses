@@ -75,6 +75,48 @@
   .brand svg { color: var(--good); flex-shrink: 0; }
   h1 { font-size: 19px; font-weight: 700; margin: 0; letter-spacing: -0.01em; }
   .app-tagline { font-size: 14px; color: var(--text-dim); margin-top: 2px; }
+  .brand-text { display: flex; flex-direction: column; }
+  .top-actions { display: flex; gap: 8px; flex-shrink: 0; }
+
+  .settings-screen {
+    position: fixed; inset: 0; background: var(--bg); z-index: 500;
+    display: none; flex-direction: column;
+  }
+  .settings-screen.active { display: flex; }
+  .settings-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: calc(14px + env(safe-area-inset-top)) 16px 14px;
+    border-bottom: 1px solid var(--border); flex-shrink: 0;
+  }
+  .settings-title { font-size: 17px; font-weight: 700; }
+  .settings-content { flex: 1; overflow-y: auto; padding: 16px; padding-bottom: calc(32px + env(safe-area-inset-bottom)); }
+  .settings-content .panel:first-child { margin-top: 0; }
+
+  .lock-screen {
+    position: fixed; inset: 0; background: var(--bg); z-index: 9999;
+    display: none; flex-direction: column; align-items: center; justify-content: center; gap: 10px;
+    transition: background-color 0.2s ease;
+  }
+  .lock-screen.active { display: flex; }
+  .lock-screen.locked-mode { background: #000; }
+  .lock-stage { display: flex; flex-direction: column; align-items: center; gap: 10px; width: 100%; max-width: 280px; padding: 0 24px; }
+  .lock-icon { color: var(--text-dim); }
+  .lock-title { font-size: 20px; font-weight: 700; margin-top: 8px; text-align: center; }
+  .lock-sub { font-size: 13px; color: var(--text-dim); margin-bottom: 6px; text-align: center; }
+  .lock-dots { display: flex; gap: 11px; }
+  .lock-dot { width: 13px; height: 13px; border-radius: 50%; border: 1.5px solid var(--text-faint); }
+  .lock-dot.filled { background: var(--accent); border-color: var(--accent); }
+  .lock-error { color: var(--bad); font-size: 13px; margin-top: 10px; visibility: hidden; }
+  .lock-error.show { visibility: visible; }
+  .lock-hidden-input { position: absolute; opacity: 0; pointer-events: none; width: 1px; height: 1px; }
+  .lock-text-input {
+    width: 100%; text-align: center; font-size: 17px; padding: 12px; border-radius: 10px;
+    border: 1px solid var(--border); background: var(--panel); color: var(--text); outline: none;
+    font-family: var(--font-sans);
+  }
+  .lock-submit-btn { margin-top: 2px; }
+  .lock-stage-locked .lock-title { color: #fff; }
+  .lock-countdown { font-family: var(--font-mono); font-size: 42px; font-weight: 700; color: #fff; margin-top: 8px; letter-spacing: 0.02em; }
 
   .icon-btn {
     width: 34px; height: 34px; border-radius: 50%;
@@ -225,6 +267,83 @@
 </style>
 </head>
 <body>
+<div class="lock-screen" id="lockScreen">
+  <div class="lock-stage" id="lockStageQuestion">
+    <svg class="lock-icon" width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="12" cy="12" r="9"/>
+      <path d="M9.5 9a2.5 2.5 0 0 1 5 0c0 1.7-2 1.8-2 3.5"/>
+      <path d="M12 17h.01"/>
+    </svg>
+    <div class="lock-title">Question de sécurité</div>
+    <div class="lock-sub" id="lockQuestionText">—</div>
+    <input type="text" id="lockAnswerInput" class="lock-text-input" autocomplete="off" autocapitalize="none" autocorrect="off" spellcheck="false" placeholder="Votre réponse">
+    <button class="primary-btn lock-submit-btn" id="lockAnswerSubmitBtn">Valider</button>
+    <div class="lock-error" id="lockAnswerError">Réponse incorrecte</div>
+  </div>
+
+  <div class="lock-stage" id="lockStageCode" style="display:none;">
+    <svg class="lock-icon" width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+      <rect x="5" y="11" width="14" height="10" rx="2"/>
+      <path d="M8 11V7a4 4 0 0 1 8 0v4"/>
+    </svg>
+    <div class="lock-title">VALENSYA</div>
+    <div class="lock-sub">Entrez votre code</div>
+    <div class="lock-dots" id="lockDots">
+      <span class="lock-dot"></span><span class="lock-dot"></span><span class="lock-dot"></span><span class="lock-dot"></span><span class="lock-dot"></span><span class="lock-dot"></span>
+    </div>
+    <div class="lock-error" id="lockCodeError">Code incorrect</div>
+    <input type="tel" inputmode="numeric" pattern="[0-9]*" maxlength="6" id="lockPinInput" class="lock-hidden-input" autocomplete="off">
+  </div>
+
+  <div class="lock-stage lock-stage-locked" id="lockStageLocked" style="display:none;">
+    <div class="lock-title">Accès temporairement bloqué</div>
+    <div class="lock-countdown" id="lockCountdown">1:00</div>
+  </div>
+</div>
+
+<div class="settings-screen" id="settingsScreen">
+  <div class="settings-header">
+    <button class="icon-btn" id="closeSettingsBtn" aria-label="Fermer les réglages">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+    </button>
+    <div class="settings-title">Réglages</div>
+    <div style="width:34px;"></div>
+  </div>
+  <div class="settings-content" id="settingsContent">
+    <div class="panel" id="securityPanel">
+      <div class="actions-block" id="securityActivateBlock">
+        <button class="primary-btn" id="setupSecurityBtn">Activer la protection</button>
+      </div>
+      <div class="actions-block" id="securityManageBlock" style="display:none;">
+        <div style="display:flex; gap:8px;">
+          <button class="secondary-btn" id="changeSecurityBtn" style="flex:1;">Modifier</button>
+          <button class="secondary-btn" id="disableSecurityBtn" style="flex:1;color:var(--bad);">Désactiver</button>
+        </div>
+      </div>
+      <div class="hint" style="padding-top:0;">Question secrète suivie d'un code à 6 chiffres, avec blocage d'1 minute après 2 échecs à chaque étape. Se déclenche à chaque ouverture ou retour au premier plan.</div>
+    </div>
+    <div class="panel">
+      <div class="actions-block" style="display:flex; gap:8px;">
+        <button class="secondary-btn" id="exportBackupBtn" style="flex:1;">Exporter mes données</button>
+        <button class="secondary-btn" id="importBackupBtn" style="flex:1;">Importer une sauvegarde</button>
+      </div>
+      <div class="hint" style="padding-top:0;">Vos données ne vivent que sur cet appareil. Exportez régulièrement une sauvegarde (fichier .json) pour ne rien perdre en cas de changement de téléphone ou de nettoyage de Safari.</div>
+    </div>
+    <div class="panel">
+      <div class="actions-block" style="display:flex; gap:8px;">
+        <button class="secondary-btn" id="exportRulesBtn" style="flex:1;">Exporter les règles</button>
+        <button class="secondary-btn" id="importRulesBtn" style="flex:1;">Importer des règles</button>
+      </div>
+      <div class="hint" style="padding-top:0;">Pour synchroniser vos règles et catégories entre deux appareils (ex : iPhone et PC) sans toucher aux transactions déjà importées. Contrairement à la sauvegarde complète, l'import ici fusionne avec l'existant au lieu de tout remplacer.</div>
+    </div>
+    <div class="panel">
+      <div class="actions-block">
+        <button class="danger-btn" id="resetAllBtn">Réinitialiser toute l'application</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <div class="wrap">
   <div class="top">
     <div class="brand">
@@ -233,18 +352,28 @@
         <path d="M9 8.5h4.5a2 2 0 1 1 0 4H10a2 2 0 1 0 0 4h5"/>
         <path d="M7 10.5h3M7 13.5h3"/>
       </svg>
-      <h1>VALENSYA</h1>
-<div class="app-tagline">Donnez du sens à vos comptes</div>
+      <div class="brand-text">
+        <h1>VALENSYA</h1>
+        <div class="app-tagline">Donnez du sens à vos comptes</div>
+      </div>
     </div>
-    <button class="icon-btn" id="themeToggle" aria-label="Changer de thème">
-      <svg class="icon-sun" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <circle cx="12" cy="12" r="4"/>
-        <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/>
-      </svg>
-      <svg class="icon-moon" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
-      </svg>
-    </button>
+    <div class="top-actions">
+      <button class="icon-btn" id="settingsBtn" aria-label="Réglages">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="3"/>
+          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82A1.65 1.65 0 0 0 3 13.09H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+        </svg>
+      </button>
+      <button class="icon-btn" id="themeToggle" aria-label="Changer de thème">
+        <svg class="icon-sun" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="4"/>
+          <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/>
+        </svg>
+        <svg class="icon-moon" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+        </svg>
+      </button>
+    </div>
   </div>
 
   <div id="toast" class="banner banner-info" style="display:none;"></div>
@@ -331,27 +460,9 @@
       <div id="rulesList"></div>
     </div>
     <div class="hint">Chaque règle cherche le mot-clé n'importe où dans le libellé de la transaction, sans tenir compte de la casse. Si plusieurs règles correspondent, la plus longue (la plus spécifique) l'emporte.</div>
-    <div class="panel">
-      <div class="actions-block" style="display:flex; gap:8px;">
-        <button class="secondary-btn" id="exportBackupBtn" style="flex:1;">Exporter mes données</button>
-        <button class="secondary-btn" id="importBackupBtn" style="flex:1;">Importer une sauvegarde</button>
-      </div>
-      <div class="hint" style="padding-top:0;">Vos données ne vivent que sur cet appareil. Exportez régulièrement une sauvegarde (fichier .json) pour ne rien perdre en cas de changement de téléphone ou de nettoyage de Safari.</div>
-    </div>
-    <div class="panel">
-      <div class="actions-block" style="display:flex; gap:8px;">
-        <button class="secondary-btn" id="exportRulesBtn" style="flex:1;">Exporter les règles</button>
-        <button class="secondary-btn" id="importRulesBtn" style="flex:1;">Importer des règles</button>
-      </div>
-      <div class="hint" style="padding-top:0;">Pour synchroniser vos règles et catégories entre deux appareils (ex : iPhone et PC) sans toucher aux transactions déjà importées. Contrairement à la sauvegarde complète, l'import ici fusionne avec l'existant au lieu de tout remplacer.</div>
-    </div>
-    <div class="panel">
-      <div class="actions-block">
-        <button class="danger-btn" id="resetAllBtn">Réinitialiser toute l'application</button>
-      </div>
-    </div>
   </div>
 </div>
+
 
 <input type="file" id="csvInput" accept=".csv,text/csv" style="display:none;">
 <input type="file" id="backupInput" accept="application/json,.json" style="display:none;">
@@ -370,6 +481,214 @@ document.getElementById('themeToggle').addEventListener('click', () => {
   root.setAttribute('data-theme', next);
   try { localStorage.setItem('theme', next); } catch (e) {}
   syncThemeColorMeta();
+});
+
+// ---- Verrouillage : question secrète + code à 6 chiffres + blocage ----
+const LS_SECURITY_Q = 'valensya_security_question';
+const LS_SECURITY_A_HASH = 'valensya_security_answer_hash';
+const LS_PIN = 'valensya_pin_hash';
+const LS_LOCKOUT_UNTIL = 'valensya_lockout_until';
+const LOCKOUT_MS = 60000;
+
+let questionFailCount = 0;
+let codeFailCount = 0;
+let lockoutInterval = null;
+
+async function sha256Hex(str) {
+  const enc = new TextEncoder().encode(str);
+  const buf = await crypto.subtle.digest('SHA-256', enc);
+  return Array.from(new Uint8Array(buf)).map((b) => b.toString(16).padStart(2, '0')).join('');
+}
+function isSecurityEnabled() {
+  return !!localStorage.getItem(LS_SECURITY_Q) && !!localStorage.getItem(LS_PIN);
+}
+function getLockoutRemaining() {
+  const until = parseInt(localStorage.getItem(LS_LOCKOUT_UNTIL) || '0', 10);
+  return Math.max(0, until - Date.now());
+}
+function setLockStage(stage) {
+  document.getElementById('lockStageQuestion').style.display = stage === 'question' ? 'flex' : 'none';
+  document.getElementById('lockStageCode').style.display = stage === 'code' ? 'flex' : 'none';
+  document.getElementById('lockStageLocked').style.display = stage === 'locked' ? 'flex' : 'none';
+}
+function updateLockDots() {
+  const val = document.getElementById('lockPinInput').value;
+  document.querySelectorAll('.lock-dot').forEach((d, i) => d.classList.toggle('filled', i < val.length));
+}
+
+function showQuestionStage() {
+  questionFailCount = 0;
+  codeFailCount = 0;
+  document.getElementById('lockScreen').classList.remove('locked-mode');
+  setLockStage('question');
+  document.getElementById('lockQuestionText').textContent = localStorage.getItem(LS_SECURITY_Q) || '';
+  const input = document.getElementById('lockAnswerInput');
+  input.value = '';
+  document.getElementById('lockAnswerError').classList.remove('show');
+  setTimeout(() => input.focus(), 50);
+}
+function showCodeStage() {
+  setLockStage('code');
+  const input = document.getElementById('lockPinInput');
+  input.value = '';
+  updateLockDots();
+  document.getElementById('lockCodeError').classList.remove('show');
+  setTimeout(() => input.focus(), 50);
+}
+function updateLockoutCountdown() {
+  const remaining = getLockoutRemaining();
+  if (remaining <= 0) {
+    clearInterval(lockoutInterval);
+    localStorage.removeItem(LS_LOCKOUT_UNTIL);
+    showQuestionStage();
+    return;
+  }
+  const secs = Math.ceil(remaining / 1000);
+  const m = Math.floor(secs / 60);
+  const s = secs % 60;
+  document.getElementById('lockCountdown').textContent = m + ':' + String(s).padStart(2, '0');
+}
+function showLockoutStage() {
+  document.getElementById('lockScreen').classList.add('locked-mode');
+  setLockStage('locked');
+  updateLockoutCountdown();
+  clearInterval(lockoutInterval);
+  lockoutInterval = setInterval(updateLockoutCountdown, 250);
+}
+function triggerLockout() {
+  localStorage.setItem(LS_LOCKOUT_UNTIL, String(Date.now() + LOCKOUT_MS));
+  showLockoutStage();
+}
+function showLockScreen() {
+  document.getElementById('lockScreen').classList.add('active');
+  if (getLockoutRemaining() > 0) {
+    showLockoutStage();
+  } else {
+    showQuestionStage();
+  }
+}
+function hideLockScreen() {
+  document.getElementById('lockScreen').classList.remove('active');
+  clearInterval(lockoutInterval);
+}
+
+document.getElementById('lockScreen').addEventListener('click', () => {
+  if (document.getElementById('lockStageCode').style.display !== 'none') {
+    document.getElementById('lockPinInput').focus();
+  }
+});
+
+async function checkAnswer() {
+  const val = document.getElementById('lockAnswerInput').value;
+  if (!val.trim()) return;
+  const hash = await sha256Hex(normalizeText(val));
+  if (hash === localStorage.getItem(LS_SECURITY_A_HASH)) {
+    showCodeStage();
+  } else {
+    questionFailCount++;
+    if (questionFailCount >= 2) {
+      triggerLockout();
+    } else {
+      document.getElementById('lockAnswerError').classList.add('show');
+      document.getElementById('lockAnswerInput').value = '';
+      document.getElementById('lockAnswerInput').focus();
+    }
+  }
+}
+document.getElementById('lockAnswerSubmitBtn').addEventListener('click', checkAnswer);
+document.getElementById('lockAnswerInput').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') checkAnswer();
+});
+
+document.getElementById('lockPinInput').addEventListener('input', async (e) => {
+  const val = e.target.value.replace(/\D/g, '').slice(0, 6);
+  e.target.value = val;
+  updateLockDots();
+  if (val.length === 6) {
+    const hash = await sha256Hex(val);
+    if (hash === localStorage.getItem(LS_PIN)) {
+      hideLockScreen();
+    } else {
+      codeFailCount++;
+      if (codeFailCount >= 2) {
+        triggerLockout();
+      } else {
+        document.getElementById('lockCodeError').classList.add('show');
+        setTimeout(() => {
+          e.target.value = '';
+          updateLockDots();
+          document.getElementById('lockCodeError').classList.remove('show');
+        }, 900);
+      }
+    }
+  }
+});
+
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible' && isSecurityEnabled()) {
+    showLockScreen();
+  }
+});
+if (isSecurityEnabled()) {
+  showLockScreen();
+}
+
+// ---- Réglages : activer / modifier / désactiver la protection ----
+function renderSecurityPanel() {
+  const enabled = isSecurityEnabled();
+  document.getElementById('securityActivateBlock').style.display = enabled ? 'none' : 'block';
+  document.getElementById('securityManageBlock').style.display = enabled ? 'block' : 'none';
+}
+async function setupNewSecurity() {
+  const question = prompt('Écrivez votre question secrète :');
+  if (question === null || !question.trim()) return;
+  const answer = prompt('Réponse à cette question (un mot) :');
+  if (answer === null || !answer.trim()) return;
+  let code1 = null;
+  while (code1 === null) {
+    const attempt = prompt('Choisissez un code à 6 chiffres :');
+    if (attempt === null) return;
+    if (/^\d{6}$/.test(attempt)) { code1 = attempt; } else { alert('Le code doit contenir exactement 6 chiffres.'); }
+  }
+  const code2 = prompt('Confirmez le code :');
+  if (code2 === null) return;
+  if (code1 !== code2) { alert('Les deux codes ne correspondent pas.'); return; }
+
+  localStorage.setItem(LS_SECURITY_Q, question.trim());
+  localStorage.setItem(LS_SECURITY_A_HASH, await sha256Hex(normalizeText(answer)));
+  localStorage.setItem(LS_PIN, await sha256Hex(code1));
+  renderSecurityPanel();
+  showToast('Protection activée.');
+}
+async function verifyCurrentCode() {
+  const current = prompt('Code actuel (6 chiffres) :');
+  if (current === null) return false;
+  const hash = await sha256Hex(current);
+  if (hash !== localStorage.getItem(LS_PIN)) { alert('Code incorrect.'); return false; }
+  return true;
+}
+document.getElementById('setupSecurityBtn').addEventListener('click', () => setupNewSecurity());
+document.getElementById('changeSecurityBtn').addEventListener('click', async () => {
+  if (!(await verifyCurrentCode())) return;
+  await setupNewSecurity();
+});
+document.getElementById('disableSecurityBtn').addEventListener('click', async () => {
+  if (!(await verifyCurrentCode())) return;
+  localStorage.removeItem(LS_SECURITY_Q);
+  localStorage.removeItem(LS_SECURITY_A_HASH);
+  localStorage.removeItem(LS_PIN);
+  localStorage.removeItem(LS_LOCKOUT_UNTIL);
+  renderSecurityPanel();
+  showToast('Protection désactivée.');
+});
+renderSecurityPanel();
+
+// ---- Écran Réglages ----
+document.getElementById('settingsBtn').addEventListener('click', () => {
+  document.getElementById('settingsScreen').classList.add('active');
+});
+document.getElementById('closeSettingsBtn').addEventListener('click', () => {
+  document.getElementById('settingsScreen').classList.remove('active');
 });
 
 // ---- Constantes ----
@@ -1155,6 +1474,10 @@ document.getElementById('resetAllBtn').addEventListener('click', () => {
   localStorage.removeItem(LS_TX);
   localStorage.removeItem(LS_RULES);
   localStorage.removeItem(LS_CATS);
+  localStorage.removeItem(LS_PIN);
+  localStorage.removeItem(LS_SECURITY_Q);
+  localStorage.removeItem(LS_SECURITY_A_HASH);
+  localStorage.removeItem(LS_LOCKOUT_UNTIL);
   location.reload();
 });
 
