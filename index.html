@@ -339,6 +339,13 @@
       <div class="hint" style="padding-top:0;">Vos données ne vivent que sur cet appareil. Exportez régulièrement une sauvegarde (fichier .json) pour ne rien perdre en cas de changement de téléphone ou de nettoyage de Safari.</div>
     </div>
     <div class="panel">
+      <div class="actions-block" style="display:flex; gap:8px;">
+        <button class="secondary-btn" id="exportRulesBtn" style="flex:1;">Exporter les règles</button>
+        <button class="secondary-btn" id="importRulesBtn" style="flex:1;">Importer des règles</button>
+      </div>
+      <div class="hint" style="padding-top:0;">Pour synchroniser vos règles et catégories entre deux appareils (ex : iPhone et PC) sans toucher aux transactions déjà importées. Contrairement à la sauvegarde complète, l'import ici fusionne avec l'existant au lieu de tout remplacer.</div>
+    </div>
+    <div class="panel">
       <div class="actions-block">
         <button class="danger-btn" id="resetAllBtn">Réinitialiser toute l'application</button>
       </div>
@@ -348,6 +355,7 @@
 
 <input type="file" id="csvInput" accept=".csv,text/csv" style="display:none;">
 <input type="file" id="backupInput" accept="application/json,.json" style="display:none;">
+<input type="file" id="rulesInput" accept="application/json,.json" style="display:none;">
 
 <script>
 // ---- Thème ----
@@ -1076,6 +1084,69 @@ document.getElementById('importBackupBtn').addEventListener('click', () => docum
 document.getElementById('backupInput').addEventListener('change', (e) => {
   const file = e.target.files[0];
   if (file) handleBackupFile(file);
+  e.target.value = '';
+});
+
+// ---- Export / import des règles seules (synchronisation entre appareils) ----
+function exportRules() {
+  const data = {
+    version: 1,
+    exportedAt: new Date().toISOString(),
+    rules,
+    categories
+  };
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+  const link = document.createElement('a');
+  link.download = 'regles-valensya-' + new Date().toISOString().slice(0, 10) + '.json';
+  link.href = URL.createObjectURL(blob);
+  link.click();
+}
+async function handleRulesImportFile(file) {
+  let data;
+  try {
+    data = JSON.parse(await file.text());
+  } catch (e) {
+    alert("Ce fichier n'est pas un export de règles valide (JSON illisible).");
+    return;
+  }
+  if (!data || !Array.isArray(data.rules) || !Array.isArray(data.categories)) {
+    alert("Ce fichier n'est pas un export de règles valide (structure inattendue).");
+    return;
+  }
+
+  data.categories.forEach((c) => {
+    if (!categories.includes(c)) categories.push(c);
+  });
+
+  let added = 0, alreadyPresent = 0, conflicts = [];
+  data.rules.forEach((r) => {
+    const existing = rules.find((x) => x.keyword.toUpperCase() === r.keyword.toUpperCase());
+    if (!existing) {
+      rules.push({ keyword: r.keyword, category: r.category });
+      added++;
+    } else if (existing.category === r.category) {
+      alreadyPresent++;
+    } else {
+      conflicts.push({ keyword: r.keyword, local: existing.category, imported: r.category });
+    }
+  });
+
+  persistRules();
+  persistCategories();
+  const changed = recategorizeUnassigned();
+  renderAll();
+
+  let msg = added + ' règle(s) ajoutée(s)';
+  if (alreadyPresent) msg += ', ' + alreadyPresent + ' déjà identique(s)';
+  if (conflicts.length) msg += ', ' + conflicts.length + ' en conflit (gardées telles quelles côté local, à vérifier dans Règles)';
+  msg += changed ? '. ' + changed + ' transaction(s) recatégorisée(s).' : '.';
+  showToast(msg);
+}
+document.getElementById('exportRulesBtn').addEventListener('click', exportRules);
+document.getElementById('importRulesBtn').addEventListener('click', () => document.getElementById('rulesInput').click());
+document.getElementById('rulesInput').addEventListener('change', (e) => {
+  const file = e.target.files[0];
+  if (file) handleRulesImportFile(file);
   e.target.value = '';
 });
 
