@@ -1,6 +1,6 @@
 {
-  "name": "Suivi Dépenses",
-  "short_name": "Dépenses",
+  "name": "VALENSYA",
+  "short_name": "VALENSYA",
   "description": "Catégorisation des dépenses et revenus à partir d'exports CSV bancaires, 100% local.",
   "start_url": "./index.html",
   "scope": "./",

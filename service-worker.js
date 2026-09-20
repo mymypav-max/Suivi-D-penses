@@ -1,4 +1,4 @@
-const CACHE_NAME = 'suivi-depenses-v1';
+const CACHE_NAME = 'VALENSYA-v1';
 const APP_SHELL = [
   './',
   './index.html',
