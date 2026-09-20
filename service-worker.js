@@ -1,4 +1,4 @@
-const CACHE_NAME = 'VALENSYA-v1.2';
+const CACHE_NAME = 'VALENSYA-v1.3';
 const APP_SHELL = [
   './',
   './index.html',
